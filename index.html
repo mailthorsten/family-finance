@@ -1020,19 +1020,23 @@ function expRow(e){
   <button class="db" onclick="delExp(${e.id})">✕</button></div>`;
 }
 
+let _editingExpId=null;
 function editExp(id){
+  id=Number(id);
   _editingExpId=id;
   if(!document.getElementById('pg-exp').classList.contains('active')){
     sp('exp');
-    setTimeout(()=>openEditExp(id),150);
-    return;
+    setTimeout(()=>openEditExp(id),200);
+  } else {
+    openEditExp(id);
   }
-  openEditExp(id);
 }
-
 function openEditExp(id){
-  const e=expenses.find(x=>x.id===id);if(!e)return;
-  const row=document.getElementById('exp-row-'+id);if(!row)return;
+  id=Number(id);
+  const e=expenses.find(x=>Number(x.id)===id);
+  if(!e){console.warn('editExp: entry not found',id,expenses.map(x=>x.id));return;}
+  const row=document.getElementById('exp-row-'+id);
+  if(!row){console.warn('editExp: row not found','exp-row-'+id);return;}
   const s='background:var(--sf2);border:0.5px solid var(--ac);border-radius:6px;padding:4px 7px;color:var(--tx);outline:none;font-family:inherit;font-size:13px;';
   const cats=['🍽️ Dinner','🧴 Drogerie','🛒 Essen','🎁 Geschenke','🥤 Getränke','👕 Kleidung','🥗 Lunch','📦 Sonstiges','🎉 Spaß','⛽ Tanken'];
   const konten=['DB','DB Amex','DB LH','ING Bar','ING Karte'];
@@ -1061,7 +1065,8 @@ function openEditExp(id){
     </div>`;
 }
 function saveExp(id){
-  const e=expenses.find(x=>x.id===id);if(!e)return;
+  id=Number(id);
+  const e=expenses.find(x=>Number(x.id)===id);if(!e)return;
   const desc=document.getElementById('ee-desc-'+id)?.value.trim();
   const amount=parseFloat(document.getElementById('ee-amt-'+id)?.value);
   const date=document.getElementById('ee-date-'+id)?.value;

@@ -587,9 +587,14 @@ function subscribeToMonth(key){
 }
 
 function mergeById(local,remote){
+  // Remote is source of truth for deletions
+  // Only add local entries that don't exist in remote (offline additions)
+  const remoteIds=new Set(remote.map(e=>e.id));
+  const localOnly=local.filter(e=>!remoteIds.has(e.id));
+  // Merge: remote entries + local-only new entries
   const map={};
-  local.forEach(e=>map[e.id]=e);
-  remote.forEach(e=>map[e.id]=e); // remote wins on conflict
+  remote.forEach(e=>map[e.id]=e);
+  localOnly.forEach(e=>map[e.id]=e);
   return Object.values(map).sort((a,b)=>new Date(b.date)-new Date(a.date));
 }
 

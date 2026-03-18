@@ -1032,7 +1032,14 @@ function openEditExp(id){
   const cats=['🍽️ Dinner','🧴 Drogerie','🛒 Essen','🎁 Geschenke','🥤 Getränke','👕 Kleidung','🥗 Lunch','📦 Sonstiges','🎉 Spaß','⛽ Tanken'];
   const konten=['DB','DB Amex','DB LH','ING Bar','ING Karte'];
   // Switch to Ausgaben tab so the row exists in DOM
-  if(!document.getElementById('pg-exp').classList.contains('active')) sp('exp');
+  if(!document.getElementById('pg-exp').classList.contains('active')){
+    sp('exp');
+    setTimeout(()=>_openEditExpForm(id,e,s,cats,konten),50);
+    return;
+  }
+  _openEditExpForm(id,e,s,cats,konten);
+}
+function _openEditExpForm(id,e,s,cats,konten){
   const row=document.getElementById('exp-row-'+id);if(!row)return;
   row.innerHTML=`
     <div style="display:flex;flex-direction:column;gap:6px;width:100%;padding:4px 0;">

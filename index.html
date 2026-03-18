@@ -571,6 +571,7 @@ function subscribeToMonth(key){
     // Firebase is source of truth - overwrite local
     localStorage.setItem('month_'+key,remoteStr);
     if(key===activeMonthKey){
+      if(_editingExpId) return; // don't re-render while user is editing
       expenses=remote.expenses||[];
       fixItems=remote.fixItems||DEF_FIX.map(x=>({...x}));
       income=remote.income||DEF_INC.map(x=>({...x}));
@@ -1026,15 +1027,17 @@ function editExp(id){
   const e=expenses.find(x=>x.id===id);if(!e)return;
   showModal('Eintrag bearbeiten?',`"${e.desc}" (${fmt(e.amount)}) bearbeiten?`,'Bearbeiten',()=>openEditExp(id));
 }
+let _editingExpId=null;
+
 function openEditExp(id){
   const e=expenses.find(x=>x.id===id);if(!e)return;
   const s='background:var(--sf2);border:0.5px solid var(--ac);border-radius:6px;padding:4px 7px;color:var(--tx);outline:none;font-family:inherit;font-size:13px;';
   const cats=['🍽️ Dinner','🧴 Drogerie','🛒 Essen','🎁 Geschenke','🥤 Getränke','👕 Kleidung','🥗 Lunch','📦 Sonstiges','🎉 Spaß','⛽ Tanken'];
   const konten=['DB','DB Amex','DB LH','ING Bar','ING Karte'];
-  // Switch to Ausgaben tab so the row exists in DOM
+  _editingExpId=id;
   if(!document.getElementById('pg-exp').classList.contains('active')){
     sp('exp');
-    setTimeout(()=>_openEditExpForm(id,e,s,cats,konten),50);
+    setTimeout(()=>_openEditExpForm(id,e,s,cats,konten),150);
     return;
   }
   _openEditExpForm(id,e,s,cats,konten);
@@ -1060,7 +1063,7 @@ function _openEditExpForm(id,e,s,cats,konten){
         </select>
       </div>
       <div style="display:flex;gap:6px;">
-        <button class="btnsec" style="flex:1;" onclick="renderExpList();renderOv();">Abbrechen</button>
+        <button class="btnsec" style="flex:1;" onclick="_editingExpId=null;renderExpList();renderOv();">Abbrechen</button>
         <button class="bts" style="flex:1;margin-top:0;padding:9px;" onclick="saveExp(${id})">Speichern</button>
       </div>
     </div>`;
@@ -1074,6 +1077,7 @@ function saveExp(id){
   const konto=document.getElementById('ee-konto-'+id)?.value;
   const wer=document.getElementById('ee-wer-'+id)?.value;
   showModal('Änderung speichern?',`"${desc||e.desc}" wirklich speichern?`,'Speichern',()=>{
+    _editingExpId=null;
     if(desc)e.desc=desc;
     if(!isNaN(amount)&&amount>0)e.amount=amount;
     if(date)e.date=date;

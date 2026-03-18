@@ -114,6 +114,48 @@ select option{background:#1c1c1c;}
 </style>
 </head>
 <body>
+<style>
+#pin-screen{position:fixed;inset:0;background:#0a0a0a;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
+#pin-screen.hidden{display:none;}
+.pin-title{font-size:22px;font-weight:600;color:#f0f0f0;letter-spacing:-.5px;}
+.pin-sub{font-size:13px;color:#888;}
+.pin-dots{display:flex;gap:14px;}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid #444;transition:background .15s;}
+.pin-dot.filled{background:#e8ff57;border-color:#e8ff57;}
+.pin-error{font-size:13px;color:#ff4f4f;min-height:18px;}
+.pin-pad{display:grid;grid-template-columns:repeat(3,72px);gap:12px;}
+.pin-key{width:72px;height:72px;border-radius:50%;border:0.5px solid #2a2a2a;background:#141414;color:#f0f0f0;font-size:22px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;}
+.pin-key:active{background:#2a2a2a;}
+.pin-key.del{font-size:16px;color:#888;}
+.pin-key.empty{border:none;background:transparent;cursor:default;}
+</style>
+<div id="pin-screen">
+  <div class="pin-title">Family Finance</div>
+  <div class="pin-sub">PIN eingeben</div>
+  <div class="pin-dots">
+    <div class="pin-dot" id="pd0"></div>
+    <div class="pin-dot" id="pd1"></div>
+    <div class="pin-dot" id="pd2"></div>
+    <div class="pin-dot" id="pd3"></div>
+  </div>
+  <div class="pin-error" id="pin-error"></div>
+  <div class="pin-pad">
+    <button class="pin-key" onclick="pinKey('1')">1</button>
+    <button class="pin-key" onclick="pinKey('2')">2</button>
+    <button class="pin-key" onclick="pinKey('3')">3</button>
+    <button class="pin-key" onclick="pinKey('4')">4</button>
+    <button class="pin-key" onclick="pinKey('5')">5</button>
+    <button class="pin-key" onclick="pinKey('6')">6</button>
+    <button class="pin-key" onclick="pinKey('7')">7</button>
+    <button class="pin-key" onclick="pinKey('8')">8</button>
+    <button class="pin-key" onclick="pinKey('9')">9</button>
+    <button class="pin-key empty"></button>
+    <button class="pin-key" onclick="pinKey('0')">0</button>
+    <button class="pin-key del" onclick="pinDel()">⌫</button>
+  </div>
+</div>
+
+<div id="app-content" style="display:none;">
 <div class="hdr">
   <div class="hdr-top">
     <div><div class="hdr-title">Family Finance</div><div class="hdr-sub" id="mlbl"></div></div>
@@ -1510,6 +1552,41 @@ ld();
 document.getElementById('in-date').value=new Date().toISOString().split('T')[0];
 renderOv();
 </script>
+</div><!-- end app-content -->
 <script>if("serviceWorker"in navigator){navigator.serviceWorker.register("./sw.js")}</script>
+<script>
+const CORRECT_PIN='1505';
+let pinEntry='';
+
+function pinKey(d){
+  if(pinEntry.length>=4) return;
+  pinEntry+=d;
+  document.getElementById('pd'+(pinEntry.length-1)).classList.add('filled');
+  if(pinEntry.length===4) setTimeout(checkPin,120);
+}
+function pinDel(){
+  if(!pinEntry.length) return;
+  document.getElementById('pd'+(pinEntry.length-1)).classList.remove('filled');
+  pinEntry=pinEntry.slice(0,-1);
+  document.getElementById('pin-error').textContent='';
+}
+function checkPin(){
+  if(pinEntry===CORRECT_PIN){
+    sessionStorage.setItem('ff_auth','1');
+    document.getElementById('pin-screen').classList.add('hidden');
+    document.getElementById('app-content').style.display='';
+  } else {
+    document.getElementById('pin-error').textContent='Falscher PIN — bitte erneut versuchen';
+    pinEntry='';
+    [0,1,2,3].forEach(i=>document.getElementById('pd'+i).classList.remove('filled'));
+  }
+}
+
+// Check if already authenticated this session
+if(sessionStorage.getItem('ff_auth')==='1'){
+  document.getElementById('pin-screen').classList.add('hidden');
+  document.getElementById('app-content').style.display='';
+}
+</script>
 </body>
 </html>

@@ -902,6 +902,7 @@ function editTrv(id){
   showModal('Eintrag bearbeiten?',`"${e.desc}" (${fmt(e.amount)}) bearbeiten?`,'Bearbeiten',()=>openEditTrv(id));
 }
 function openEditTrv(id){
+  const e=trvItems.find(x=>x.id===id);if(!e)return;
   const s='background:var(--sf2);border:0.5px solid var(--ac);border-radius:6px;padding:4px 7px;color:var(--tx);outline:none;font-family:inherit;font-size:13px;';
   const row=document.getElementById('trv-row-'+id);if(!row)return;
   row.innerHTML=`
@@ -1026,6 +1027,7 @@ function editExp(id){
   showModal('Eintrag bearbeiten?',`"${e.desc}" (${fmt(e.amount)}) bearbeiten?`,'Bearbeiten',()=>openEditExp(id));
 }
 function openEditExp(id){
+  const e=expenses.find(x=>x.id===id);if(!e)return;
   const s='background:var(--sf2);border:0.5px solid var(--ac);border-radius:6px;padding:4px 7px;color:var(--tx);outline:none;font-family:inherit;font-size:13px;';
   const cats=['🍽️ Dinner','🧴 Drogerie','🛒 Essen','🎁 Geschenke','🥤 Getränke','👕 Kleidung','🥗 Lunch','📦 Sonstiges','🎉 Spaß','⛽ Tanken'];
   const konten=['DB','DB Amex','DB LH','ING Bar','ING Karte'];

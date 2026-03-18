@@ -622,20 +622,26 @@ function syncMonthFromFirebase(key,callback){
   db.ref('months/'+key).once('value').then(snap=>{
     const remote=snap.val();
     if(remote){
+      // Firebase is source of truth - just use remote data
+      // Only add local-only offline entries not yet in Firebase
       const local=getMonthData(key);
-      let merged=local?{
-        ...remote,
-        expenses:mergeById(local.expenses||[],remote.expenses||[]),
-        trvItems:mergeById(local.trvItems||[],remote.trvItems||[])
-      }:remote;
-      // Inject March Reisekosten if still missing
-      if(key==='2026-03'&&(merged.trvItems||[]).length===0&&typeof MAR_TRV!=='undefined'){
-        merged.trvItems=MAR_TRV;
-        db.ref('months/'+key+'/trvItems').set(MAR_TRV).catch(()=>{});
+      let data=remote;
+      if(local){
+        const remoteExpIds=new Set((remote.expenses||[]).map(e=>e.id));
+        const localNewExp=(local.expenses||[]).filter(e=>!remoteExpIds.has(e.id));
+        const remoteTrvIds=new Set((remote.trvItems||[]).map(e=>e.id));
+        const localNewTrv=(local.trvItems||[]).filter(e=>!remoteTrvIds.has(e.id));
+        if(localNewExp.length>0||localNewTrv.length>0){
+          data={...remote,
+            expenses:[...(remote.expenses||[]),...localNewExp],
+            trvItems:[...(remote.trvItems||[]),...localNewTrv]
+          };
+          db.ref('months/'+key).set(data).catch(()=>{});
+        }
       }
-      localStorage.setItem('month_'+key,JSON.stringify(merged));
+      localStorage.setItem('month_'+key,JSON.stringify(data));
       updateMonthList(key);
-      callback(merged);
+      callback(data);
     } else {
       callback(null);
     }

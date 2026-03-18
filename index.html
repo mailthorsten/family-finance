@@ -565,33 +565,28 @@ function subscribeToMonth(key){
   fbListeners[key]=db.ref('months/'+key).on('value',snap=>{
     const remote=snap.val();
     if(!remote) return;
-    const local=getMonthData(key);
-    if(!local){
-      localStorage.setItem('month_'+key,JSON.stringify(remote));
-      if(key===activeMonthKey) reloadFromData(key,remote);
-      return;
+    const localStr=localStorage.getItem('month_'+key);
+    const remoteStr=JSON.stringify(remote);
+    if(localStr===remoteStr) return;
+    // Firebase is source of truth - overwrite local
+    localStorage.setItem('month_'+key,remoteStr);
+    if(key===activeMonthKey){
+      expenses=remote.expenses||[];
+      fixItems=remote.fixItems||DEF_FIX.map(x=>({...x}));
+      income=remote.income||DEF_INC.map(x=>({...x}));
+      if(key==='2026-03') income=income.filter(i=>i.name!=='RAP');
+      savItems=remote.savItems&&remote.savItems.length>0?remote.savItems:DEF_SAV_ITEMS.map(x=>({...x}));
+      perItems=remote.perItems||DEF_PER.map(x=>({...x}));
+      trvItems=remote.trvItems||[];
+      renderAll();
     }
-    // Merge: combine expenses and trvItems by id, remote wins for settings
-    const merged={
-      ...remote,
-      expenses:mergeById(local.expenses||[],remote.expenses||[]),
-      trvItems:mergeById(local.trvItems||[],remote.trvItems||[])
-    };
-    const mergedStr=JSON.stringify(merged);
-    if(mergedStr===JSON.stringify(local)) return; // no change
-    localStorage.setItem('month_'+key,mergedStr);
-    // Push merged back to Firebase to keep in sync
-    db.ref('months/'+key).set(merged).catch(()=>{});
-    if(key===activeMonthKey) reloadFromData(key,merged);
   });
 }
 
 function mergeById(local,remote){
-  // Remote is source of truth for deletions
-  // Only add local entries that don't exist in remote (offline additions)
+  // Only used on startup when coming back online - add local offline entries to remote
   const remoteIds=new Set(remote.map(e=>e.id));
   const localOnly=local.filter(e=>!remoteIds.has(e.id));
-  // Merge: remote entries + local-only new entries
   const map={};
   remote.forEach(e=>map[e.id]=e);
   localOnly.forEach(e=>map[e.id]=e);

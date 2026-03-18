@@ -900,10 +900,6 @@ function trvRow(e){
 
 function editTrv(id){
   const e=trvItems.find(x=>x.id===id);if(!e)return;
-  showModal('Eintrag bearbeiten?',`"${e.desc}" (${fmt(e.amount)}) bearbeiten?`,'Bearbeiten',()=>openEditTrv(id));
-}
-function openEditTrv(id){
-  const e=trvItems.find(x=>x.id===id);if(!e)return;
   const s='background:var(--sf2);border:0.5px solid var(--ac);border-radius:6px;padding:4px 7px;color:var(--tx);outline:none;font-family:inherit;font-size:13px;';
   const row=document.getElementById('trv-row-'+id);if(!row)return;
   row.innerHTML=`
@@ -927,6 +923,7 @@ function openEditTrv(id){
       </div>
     </div>`;
 }
+function openEditTrv(id){}
 function saveTrv(id){
   const e=trvItems.find(x=>x.id===id);if(!e)return;
   const desc=document.getElementById('te-desc-'+id)?.value.trim();
@@ -1024,26 +1021,21 @@ function expRow(e){
 }
 
 function editExp(id){
-  const e=expenses.find(x=>x.id===id);if(!e)return;
-  showModal('Eintrag bearbeiten?',`"${e.desc}" (${fmt(e.amount)}) bearbeiten?`,'Bearbeiten',()=>openEditExp(id));
-}
-let _editingExpId=null;
-
-function openEditExp(id){
-  const e=expenses.find(x=>x.id===id);if(!e)return;
-  const s='background:var(--sf2);border:0.5px solid var(--ac);border-radius:6px;padding:4px 7px;color:var(--tx);outline:none;font-family:inherit;font-size:13px;';
-  const cats=['🍽️ Dinner','🧴 Drogerie','🛒 Essen','🎁 Geschenke','🥤 Getränke','👕 Kleidung','🥗 Lunch','📦 Sonstiges','🎉 Spaß','⛽ Tanken'];
-  const konten=['DB','DB Amex','DB LH','ING Bar','ING Karte'];
   _editingExpId=id;
   if(!document.getElementById('pg-exp').classList.contains('active')){
     sp('exp');
-    setTimeout(()=>_openEditExpForm(id,e,s,cats,konten),150);
+    setTimeout(()=>openEditExp(id),150);
     return;
   }
-  _openEditExpForm(id,e,s,cats,konten);
+  openEditExp(id);
 }
-function _openEditExpForm(id,e,s,cats,konten){
+
+function openEditExp(id){
+  const e=expenses.find(x=>x.id===id);if(!e)return;
   const row=document.getElementById('exp-row-'+id);if(!row)return;
+  const s='background:var(--sf2);border:0.5px solid var(--ac);border-radius:6px;padding:4px 7px;color:var(--tx);outline:none;font-family:inherit;font-size:13px;';
+  const cats=['🍽️ Dinner','🧴 Drogerie','🛒 Essen','🎁 Geschenke','🥤 Getränke','👕 Kleidung','🥗 Lunch','📦 Sonstiges','🎉 Spaß','⛽ Tanken'];
+  const konten=['DB','DB Amex','DB LH','ING Bar','ING Karte'];
   row.innerHTML=`
     <div style="display:flex;flex-direction:column;gap:6px;width:100%;padding:4px 0;">
       <input id="ee-desc-${id}" value="${e.desc}" style="${s}width:100%;" autocomplete="off"/>

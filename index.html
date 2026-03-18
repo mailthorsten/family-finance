@@ -128,7 +128,26 @@ select option{background:#1c1c1c;}
 .pin-key:active{background:#2a2a2a;}
 .pin-key.del{font-size:16px;color:#888;}
 .pin-key.empty{border:none;background:transparent;cursor:default;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:8000;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.hidden{display:none;}
+.modal-box{background:var(--sf2);border:0.5px solid var(--bd2);border-radius:var(--r);padding:22px;max-width:300px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.5);}
+.modal-title{font-size:15px;font-weight:600;color:var(--tx);margin-bottom:6px;}
+.modal-msg{font-size:13px;color:var(--tx2);margin-bottom:18px;line-height:1.5;}
+.modal-btns{display:flex;gap:8px;}
+.modal-btns button{flex:1;padding:11px;border-radius:var(--rs);border:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;}
+.modal-cancel{background:var(--sf)!important;color:var(--tx2)!important;border:0.5px solid var(--bd2)!important;}
+.modal-confirm{background:var(--red);color:#fff;}
 </style>
+<div class="modal-overlay hidden" id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Bestätigung</div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="modalCancel()">Abbrechen</button>
+      <button class="modal-confirm" id="modal-confirm-btn" onclick="modalConfirm()">Bestätigen</button>
+    </div>
+  </div>
+</div>
 <div id="pin-screen">
   <div class="pin-title">Family Finance</div>
   <div class="pin-sub">PIN eingeben</div>
@@ -155,7 +174,7 @@ select option{background:#1c1c1c;}
   </div>
 </div>
 
-<div id="app-content" style="display:none;">
+<div id="app-content" style="display:none;flex-direction:column;height:100%;">
 <div class="hdr">
   <div class="hdr-top">
     <div><div class="hdr-title">Family Finance</div><div class="hdr-sub" id="mlbl"></div></div>
@@ -211,6 +230,8 @@ select option{background:#1c1c1c;}
 
 <!-- EXPENSES -->
 <div class="pg active" id="pg-exp">
+  <button class="bts" id="exp-form-toggle" onclick="toggleExpForm()" style="margin-bottom:12px;">＋ Neue Ausgabe</button>
+  <div id="exp-form" style="display:none;">
   <div class="fc">
     <div class="fg"><div class="fl">Beschreibung</div><input type="text" id="in-desc" placeholder="z.B. Supermarkt" autocomplete="off"/></div>
     <div class="fr2">
@@ -220,7 +241,7 @@ select option{background:#1c1c1c;}
     <div class="fr2">
       <div class="fg"><div class="fl">Kategorie</div>
         <select id="in-cat">
-          <option>🍽️ Dinner</option><option>🧴 Drogerie</option><option>🛒 Essen</option>
+          <option>🍽️ Dinner</option><option>🧴 Drogerie</option><option selected>🛒 Essen</option>
           <option>🎁 Geschenke</option><option>🥤 Getränke</option><option>👕 Kleidung</option>
           <option>🥗 Lunch</option><option>📦 Sonstiges</option><option>🎉 Spaß</option>
           <option>⛽ Tanken</option>
@@ -238,8 +259,8 @@ select option{background:#1c1c1c;}
         <option>Thorsten</option><option selected>Nina</option><option>Antonia</option>
       </select>
     </div>
-
     <button class="bts" onclick="addExp()">Speichern</button>
+  </div>
   </div>
   <div class="stl">Alle Ausgaben</div>
   <div class="frow" id="exp-filters"></div>
@@ -478,6 +499,28 @@ function monthLabel(key){
 }
 
 /* ── MONTH STORAGE ── */
+/* ── MODAL ── */
+let modalCb=null;
+function showModal(title,msg,confirmLabel,cb){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-msg').textContent=msg;
+  const btn=document.getElementById('modal-confirm-btn');
+  btn.textContent=confirmLabel;
+  btn.style.background=confirmLabel==='Löschen'?'var(--red)':'var(--ac)';
+  btn.style.color=confirmLabel==='Löschen'?'#fff':'var(--act)';
+  document.getElementById('modal-overlay').classList.remove('hidden');
+  modalCb=cb;
+}
+function modalConfirm(){
+  document.getElementById('modal-overlay').classList.add('hidden');
+  if(modalCb) modalCb();
+  modalCb=null;
+}
+function modalCancel(){
+  document.getElementById('modal-overlay').classList.add('hidden');
+  modalCb=null;
+}
+
 /* ── FIREBASE INIT ── */
 let db=null;
 let fbListeners={};
@@ -517,23 +560,45 @@ function updateMonthList(key){
 function subscribeToMonth(key){
   if(!db||fbListeners[key]) return;
   fbListeners[key]=db.ref('months/'+key).on('value',snap=>{
-    const data=snap.val();
-    if(!data) return;
-    const local=JSON.stringify(getMonthData(key));
-    const remote=JSON.stringify(data);
-    if(local===remote) return;
-    localStorage.setItem('month_'+key,remote);
-    if(key===activeMonthKey){
-      expenses=data.expenses||[];
-      fixItems=data.fixItems||DEF_FIX.map(x=>({...x}));
-      income=data.income||DEF_INC.map(x=>({...x}));
-      if(key==='2026-03') income=income.filter(i=>i.name!=='RAP');
-      savItems=data.savItems&&data.savItems.length>0?data.savItems:DEF_SAV_ITEMS.map(x=>({...x}));
-      perItems=data.perItems||DEF_PER.map(x=>({...x}));
-      trvItems=data.trvItems||[];
-      renderAll();
+    const remote=snap.val();
+    if(!remote) return;
+    const local=getMonthData(key);
+    if(!local){
+      localStorage.setItem('month_'+key,JSON.stringify(remote));
+      if(key===activeMonthKey) reloadFromData(key,remote);
+      return;
     }
+    // Merge: combine expenses and trvItems by id, remote wins for settings
+    const merged={
+      ...remote,
+      expenses:mergeById(local.expenses||[],remote.expenses||[]),
+      trvItems:mergeById(local.trvItems||[],remote.trvItems||[])
+    };
+    const mergedStr=JSON.stringify(merged);
+    if(mergedStr===JSON.stringify(local)) return; // no change
+    localStorage.setItem('month_'+key,mergedStr);
+    // Push merged back to Firebase to keep in sync
+    db.ref('months/'+key).set(merged).catch(()=>{});
+    if(key===activeMonthKey) reloadFromData(key,merged);
   });
+}
+
+function mergeById(local,remote){
+  const map={};
+  local.forEach(e=>map[e.id]=e);
+  remote.forEach(e=>map[e.id]=e); // remote wins on conflict
+  return Object.values(map).sort((a,b)=>new Date(b.date)-new Date(a.date));
+}
+
+function reloadFromData(key,data){
+  expenses=data.expenses||[];
+  fixItems=data.fixItems||DEF_FIX.map(x=>({...x}));
+  income=data.income||DEF_INC.map(x=>({...x}));
+  if(key==='2026-03') income=income.filter(i=>i.name!=='RAP');
+  savItems=data.savItems&&data.savItems.length>0?data.savItems:DEF_SAV_ITEMS.map(x=>({...x}));
+  perItems=data.perItems||DEF_PER.map(x=>({...x}));
+  trvItems=data.trvItems||[];
+  renderAll();
 }
 
 function syncMonthListFromFirebase(callback){
@@ -552,12 +617,20 @@ function syncMonthListFromFirebase(callback){
 function syncMonthFromFirebase(key,callback){
   if(!db){callback(null);return;}
   db.ref('months/'+key).once('value').then(snap=>{
-    const data=snap.val();
-    if(data){
-      localStorage.setItem('month_'+key,JSON.stringify(data));
+    const remote=snap.val();
+    if(remote){
+      const local=getMonthData(key);
+      const merged=local?{
+        ...remote,
+        expenses:mergeById(local.expenses||[],remote.expenses||[]),
+        trvItems:mergeById(local.trvItems||[],remote.trvItems||[])
+      }:remote;
+      localStorage.setItem('month_'+key,JSON.stringify(merged));
       updateMonthList(key);
+      callback(merged);
+    } else {
+      callback(null);
     }
-    callback(data);
   }).catch(()=>callback(null));
 }
 
@@ -773,6 +846,9 @@ function trvRow(e){
 
 function editTrv(id){
   const e=trvItems.find(x=>x.id===id);if(!e)return;
+  showModal('Eintrag bearbeiten?',`"${e.desc}" (${fmt(e.amount)}) bearbeiten?`,'Bearbeiten',()=>openEditTrv(id));
+}
+function openEditTrv(id){
   const s='background:var(--sf2);border:0.5px solid var(--ac);border-radius:6px;padding:4px 7px;color:var(--tx);outline:none;font-family:inherit;font-size:13px;';
   const row=document.getElementById('trv-row-'+id);if(!row)return;
   row.innerHTML=`
@@ -849,7 +925,12 @@ function addTrv(){
   document.getElementById('trv-desc').value='';
   document.getElementById('trv-amt').value='';
 }
-function delTrv(id){trvItems=trvItems.filter(e=>e.id!==id);sv();renderTrv();}
+function delTrv(id){
+  const e=trvItems.find(x=>x.id===id);if(!e)return;
+  showModal('Eintrag löschen?',`"${e.desc}" (${fmt(e.amount)}) wirklich löschen?`,'Löschen',()=>{
+    trvItems=trvItems.filter(x=>x.id!==id);sv();renderTrv();
+  });
+}
 
 function updHdr(){
   const me=getME();
@@ -887,6 +968,9 @@ function expRow(e){
 
 function editExp(id){
   const e=expenses.find(x=>x.id===id);if(!e)return;
+  showModal('Eintrag bearbeiten?',`"${e.desc}" (${fmt(e.amount)}) bearbeiten?`,'Bearbeiten',()=>openEditExp(id));
+}
+function openEditExp(id){
   const s='background:var(--sf2);border:0.5px solid var(--ac);border-radius:6px;padding:4px 7px;color:var(--tx);outline:none;font-family:inherit;font-size:13px;';
   const cats=['🍽️ Dinner','🧴 Drogerie','🛒 Essen','🎁 Geschenke','🥤 Getränke','👕 Kleidung','🥗 Lunch','📦 Sonstiges','🎉 Spaß','⛽ Tanken'];
   const konten=['DB','DB Amex','DB LH','ING Bar','ING Karte'];
@@ -973,7 +1057,12 @@ function ovIncSaveName(id){
   if(v){const item=income.find(x=>x.id===id);if(item)item.name=v;sv();}
   renderOvInc();
 }
-function ovIncDel(id){income=income.filter(x=>x.id!==id);sv();renderOvInc();updHdr();}
+function ovIncDel(id){
+  const item=income.find(x=>x.id===id);if(!item)return;
+  showModal('Einnahme löschen?',`"${item.name}" (${fmt(item.amount)}) wirklich löschen?`,'Löschen',()=>{
+    income=income.filter(x=>x.id!==id);sv();renderOvInc();updHdr();
+  });
+}
 
 function toggleOvIncForm(){
   ovIncFormOpen=!ovIncFormOpen;
@@ -1013,6 +1102,18 @@ function renderExpList(){
 }
 function setExpF(c){activeExpFilter=c;renderExpList();}
 
+function toggleExpForm(){
+  const form=document.getElementById('exp-form');
+  const btn=document.getElementById('exp-form-toggle');
+  const open=form.style.display==='none';
+  form.style.display=open?'block':'none';
+  btn.textContent=open?'✕ Schließen':'＋ Neue Ausgabe';
+  if(open){
+    document.getElementById('in-date').value=new Date().toISOString().split('T')[0];
+    document.getElementById('in-desc').focus();
+  }
+}
+
 function addExp(){
   const desc=document.getElementById('in-desc').value.trim();
   const amount=parseFloat(document.getElementById('in-amt').value);
@@ -1030,9 +1131,21 @@ function addExp(){
   if(!valid)return;
   ['in-desc','in-amt','in-date'].forEach(id=>document.getElementById(id).style.borderColor='');
   expenses.unshift({id:Date.now(),desc,amount,cat,date,konto,wer});
-  sv();renderOv();renderExpList();sp('ov');
+  sv();renderOv();renderExpList();
+  // Reset and close form
+  document.getElementById('in-desc').value='';
+  document.getElementById('in-amt').value='';
+  document.getElementById('exp-form').style.display='none';
+  document.getElementById('exp-form-toggle').textContent='＋ Neue Ausgabe';
+  // Scroll to list
+  setTimeout(()=>document.getElementById('exp-list').scrollIntoView({behavior:'smooth',block:'start'}),100);
 }
-function delExp(id){expenses=expenses.filter(e=>e.id!==id);sv();renderOv();renderExpList();}
+function delExp(id){
+  const e=expenses.find(x=>x.id===id);if(!e)return;
+  showModal('Eintrag löschen?',`"${e.desc}" (${fmt(e.amount)}) wirklich löschen?`,'Löschen',()=>{
+    expenses=expenses.filter(x=>x.id!==id);sv();renderOv();renderExpList();
+  });
+}
 
 /* FIXKOSTEN */
 function renderFix(){
@@ -1548,12 +1661,45 @@ function sp(id){
     if(!list.includes(febKey)){list.push(febKey);list.sort((a,b)=>b.localeCompare(a));localStorage.setItem('monthlist',JSON.stringify(list));}
   }
 })();
+
+// Inject March 2026 data
+(function(){
+  const marKey='2026-03';
+  const existing=localStorage.getItem('month_'+marKey);
+  const needsUpdate=!existing||(JSON.parse(existing).expenses||[]).length===0;
+  if(needsUpdate){
+    const existing2=existing?JSON.parse(existing):{};
+    existing2.expenses=[{"id":1740787200079,"desc":"Kaffee","amount":3.64,"cat":"🍽️ Dinner","date":"2026-03-17","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200080,"desc":"Kaffee","amount":3.64,"cat":"🍽️ Dinner","date":"2026-03-17","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200081,"desc":"Geschenke Ostern","amount":18.98,"cat":"🎁 Geschenke","date":"2026-03-17","konto":"DB","wer":"Nina"},{"id":1740787200082,"desc":"Bier","amount":10.0,"cat":"🎉 Spaß","date":"2026-03-17","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200073,"desc":"Edeka","amount":8.19,"cat":"🛒 Essen","date":"2026-03-16","konto":"ING Karte","wer":"Nina"},{"id":1740787200074,"desc":"Kaffee und Brötchen","amount":7.58,"cat":"🛒 Essen","date":"2026-03-16","konto":"DB Amex","wer":"Thorsten"},{"id":1740787200075,"desc":"Wasser","amount":2.0,"cat":"🥤 Getränke","date":"2026-03-16","konto":"DB Amex","wer":"Thorsten"},{"id":1740787200076,"desc":"Bento box","amount":9.0,"cat":"🥗 Lunch","date":"2026-03-16","konto":"DB Amex","wer":"Thorsten"},{"id":1740787200077,"desc":"Geschenk Jenny","amount":50.0,"cat":"🎁 Geschenke","date":"2026-03-16","konto":"ING Bar","wer":"Nina"},{"id":1740787200078,"desc":"Bürste","amount":55.0,"cat":"🎉 Spaß","date":"2026-03-16","konto":"DB","wer":"Nina"},{"id":1740787200067,"desc":"Einkauf Rewe","amount":82.57,"cat":"🛒 Essen","date":"2026-03-14","konto":"ING Karte","wer":"Nina"},{"id":1740787200068,"desc":"Einkauf","amount":58.11,"cat":"🛒 Essen","date":"2026-03-14","konto":"ING Bar","wer":"Nina"},{"id":1740787200069,"desc":"Gänseeier Deko Ostern","amount":19.49,"cat":"🎉 Spaß","date":"2026-03-14","konto":"DB","wer":"Nina"},{"id":1740787200070,"desc":"Geschenk Renate","amount":21.99,"cat":"🎁 Geschenke","date":"2026-03-14","konto":"DB","wer":"Nina"},{"id":1740787200071,"desc":"DM","amount":33.1,"cat":"🧴 Drogerie","date":"2026-03-14","konto":"ING Bar","wer":"Nina"},{"id":1740787200072,"desc":"Getränkemarkt","amount":12.62,"cat":"🥤 Getränke","date":"2026-03-14","konto":"ING Bar","wer":"Nina"},{"id":1740787200063,"desc":"Lotto","amount":8.15,"cat":"📦 Sonstiges","date":"2026-03-13","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200064,"desc":"Friseur","amount":47.0,"cat":"🎉 Spaß","date":"2026-03-13","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200065,"desc":"Lunch","amount":8.8,"cat":"🍽️ Dinner","date":"2026-03-13","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200066,"desc":"Essen","amount":18.0,"cat":"🛒 Essen","date":"2026-03-13","konto":"ING Bar","wer":"Nina"},{"id":1740787200058,"desc":"Abendessen Steffi & Christin","amount":40.0,"cat":"🎉 Spaß","date":"2026-03-12","konto":"ING Bar","wer":"Nina"},{"id":1740787200059,"desc":"Zara Jacke","amount":21.14,"cat":"👕 Kleidung","date":"2026-03-12","konto":"ING Karte","wer":"Nina"},{"id":1740787200060,"desc":"Edeka","amount":14.8,"cat":"🛒 Essen","date":"2026-03-12","konto":"ING Bar","wer":"Nina"},{"id":1740787200061,"desc":"Essen","amount":45.0,"cat":"🛒 Essen","date":"2026-03-12","konto":"ING Bar","wer":"Nina"},{"id":1740787200062,"desc":"Parken","amount":6.0,"cat":"📦 Sonstiges","date":"2026-03-12","konto":"ING Bar","wer":"Nina"},{"id":1740787200049,"desc":"Einkauf","amount":30.89,"cat":"🛒 Essen","date":"2026-03-11","konto":"ING Bar","wer":"Nina"},{"id":1740787200050,"desc":"Einkauf","amount":28.59,"cat":"🛒 Essen","date":"2026-03-11","konto":"ING Bar","wer":"Nina"},{"id":1740787200051,"desc":"Karten 1. Mai","amount":20.0,"cat":"🎉 Spaß","date":"2026-03-11","konto":"DB","wer":"Nina"},{"id":1740787200052,"desc":"Kaffee","amount":5.77,"cat":"🥤 Getränke","date":"2026-03-11","konto":"ING Bar","wer":"Nina"},{"id":1740787200053,"desc":"Ibupr","amount":6.0,"cat":"📦 Sonstiges","date":"2026-03-11","konto":"ING Bar","wer":"Nina"},{"id":1740787200054,"desc":"Aldi","amount":15.62,"cat":"🛒 Essen","date":"2026-03-11","konto":"ING Bar","wer":"Nina"},{"id":1740787200055,"desc":"Bildschirm","amount":33.79,"cat":"📦 Sonstiges","date":"2026-03-11","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200056,"desc":"Steckdosen","amount":39.0,"cat":"📦 Sonstiges","date":"2026-03-11","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200057,"desc":"Rewe und Bäcker","amount":20.0,"cat":"🛒 Essen","date":"2026-03-11","konto":"ING Bar","wer":"Nina"},{"id":1740787200041,"desc":"Kindergeburtstag Mila","amount":15.0,"cat":"🎁 Geschenke","date":"2026-03-10","konto":"ING Bar","wer":"Nina"},{"id":1740787200042,"desc":"Pullover","amount":70.0,"cat":"👕 Kleidung","date":"2026-03-10","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200043,"desc":"Eintritt Museum","amount":11.54,"cat":"📦 Sonstiges","date":"2026-03-10","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200044,"desc":"Fxxxing Coke","amount":3.5,"cat":"📦 Sonstiges","date":"2026-03-10","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200045,"desc":"Lotto","amount":5.0,"cat":"📦 Sonstiges","date":"2026-03-10","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200046,"desc":"Drogerie","amount":20.3,"cat":"🧴 Drogerie","date":"2026-03-10","konto":"ING Bar","wer":"Nina"},{"id":1740787200047,"desc":"Hundeleckerchen","amount":8.5,"cat":"🛒 Essen","date":"2026-03-10","konto":"ING Bar","wer":"Nina"},{"id":1740787200048,"desc":"Auto waschen Mini","amount":11.4,"cat":"📦 Sonstiges","date":"2026-03-10","konto":"ING Bar","wer":"Nina"},{"id":1740787200037,"desc":"Einkauf Edeka","amount":27.81,"cat":"🛒 Essen","date":"2026-03-09","konto":"ING Bar","wer":"Nina"},{"id":1740787200038,"desc":"Versand Geschenk Mika","amount":4.1,"cat":"🎁 Geschenke","date":"2026-03-09","konto":"ING Bar","wer":"Nina"},{"id":1740787200039,"desc":"Toilettenpapier & Zewa","amount":7.9,"cat":"🧴 Drogerie","date":"2026-03-09","konto":"ING Bar","wer":"Nina"},{"id":1740787200040,"desc":"Reinigung Hose","amount":6.9,"cat":"📦 Sonstiges","date":"2026-03-09","konto":"ING Bar","wer":"Nina"},{"id":1740787200032,"desc":"Apache Konzertkarte","amount":97.9,"cat":"🎉 Spaß","date":"2026-03-08","konto":"DB","wer":"Nina"},{"id":1740787200033,"desc":"Halogenlampen","amount":16.98,"cat":"📦 Sonstiges","date":"2026-03-08","konto":"DB LH","wer":"Thorsten"},{"id":1740787200034,"desc":"Eiffelturm Paris Tickets","amount":192.0,"cat":"🎉 Spaß","date":"2026-03-08","konto":"DB","wer":"Nina"},{"id":1740787200035,"desc":"Wasser LHR","amount":7.73,"cat":"🥤 Getränke","date":"2026-03-08","konto":"DB Amex","wer":"Thorsten"},{"id":1740787200036,"desc":"Kaffee LHR","amount":5.25,"cat":"🥤 Getränke","date":"2026-03-08","konto":"DB Amex","wer":"Thorsten"},{"id":1740787200026,"desc":"Blumen Alex & Miriam","amount":15.0,"cat":"🎁 Geschenke","date":"2026-03-07","konto":"DB","wer":"Nina"},{"id":1740787200027,"desc":"Einkauf Edeka","amount":33.86,"cat":"🛒 Essen","date":"2026-03-07","konto":"ING Karte","wer":"Nina"},{"id":1740787200028,"desc":"DM","amount":46.25,"cat":"🧴 Drogerie","date":"2026-03-07","konto":"ING Karte","wer":"Nina"},{"id":1740787200029,"desc":"Rewe","amount":12.86,"cat":"🛒 Essen","date":"2026-03-07","konto":"ING Karte","wer":"Nina"},{"id":1740787200030,"desc":"Bäcker","amount":4.87,"cat":"🛒 Essen","date":"2026-03-07","konto":"ING Karte","wer":"Nina"},{"id":1740787200031,"desc":"Kabel","amount":24.97,"cat":"📦 Sonstiges","date":"2026-03-07","konto":"DB LH","wer":"Thorsten"},{"id":1740787200019,"desc":"Tanken Nina","amount":78.96,"cat":"⛽ Tanken","date":"2026-03-06","konto":"DB","wer":"Nina"},{"id":1740787200020,"desc":"Geburtstag Renate","amount":30.0,"cat":"🎁 Geschenke","date":"2026-03-06","konto":"DB","wer":"Nina"},{"id":1740787200021,"desc":"Ida Friseur","amount":95.0,"cat":"📦 Sonstiges","date":"2026-03-06","konto":"DB","wer":"Nina"},{"id":1740787200022,"desc":"Pommes Sophia & Antonia","amount":15.0,"cat":"🍽️ Dinner","date":"2026-03-06","konto":"ING Bar","wer":"Nina"},{"id":1740787200023,"desc":"Spaß","amount":45.0,"cat":"🎉 Spaß","date":"2026-03-06","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200024,"desc":"Uber","amount":36.0,"cat":"📦 Sonstiges","date":"2026-03-06","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200025,"desc":"Lotto","amount":3.15,"cat":"📦 Sonstiges","date":"2026-03-06","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200014,"desc":"Geschenk Mika","amount":10.9,"cat":"🎁 Geschenke","date":"2026-03-05","konto":"ING Karte","wer":"Nina"},{"id":1740787200015,"desc":"Mittagessen","amount":6.0,"cat":"🛒 Essen","date":"2026-03-05","konto":"ING Bar","wer":"Nina"},{"id":1740787200016,"desc":"2 Halstücher","amount":25.9,"cat":"👕 Kleidung","date":"2026-03-05","konto":"ING Bar","wer":"Nina"},{"id":1740787200017,"desc":"Einkauf Edeka","amount":75.0,"cat":"🛒 Essen","date":"2026-03-05","konto":"ING Karte","wer":"Nina"},{"id":1740787200018,"desc":"Kino & Abendessen","amount":30.0,"cat":"🎉 Spaß","date":"2026-03-05","konto":"ING Bar","wer":"Nina"},{"id":1740787200012,"desc":"Bäcker","amount":8.5,"cat":"🛒 Essen","date":"2026-03-04","konto":"ING Bar","wer":"Nina"},{"id":1740787200013,"desc":"Antonia Schuhe & Socken","amount":260.0,"cat":"👕 Kleidung","date":"2026-03-04","konto":"ING Bar","wer":"Nina"},{"id":1740787200011,"desc":"Karte Servietten Dani","amount":8.95,"cat":"🎁 Geschenke","date":"2026-03-03","konto":"ING Bar","wer":"Nina"},{"id":1740787200005,"desc":"Einkauf DM","amount":29.0,"cat":"🧴 Drogerie","date":"2026-03-02","konto":"ING Karte","wer":"Nina"},{"id":1740787200006,"desc":"Brötchen","amount":2.54,"cat":"🥗 Lunch","date":"2026-03-02","konto":"ING Karte","wer":"Thorsten"},{"id":1740787200007,"desc":"Geschenk Miriam","amount":22.8,"cat":"🎁 Geschenke","date":"2026-03-02","konto":"DB","wer":"Nina"},{"id":1740787200008,"desc":"Geschenk Rosa","amount":24.99,"cat":"🎁 Geschenke","date":"2026-03-02","konto":"DB","wer":"Nina"},{"id":1740787200009,"desc":"Einkauf Edeka","amount":29.4,"cat":"🛒 Essen","date":"2026-03-02","konto":"ING Karte","wer":"Nina"},{"id":1740787200010,"desc":"Bäcker","amount":9.55,"cat":"🛒 Essen","date":"2026-03-02","konto":"ING Karte","wer":"Nina"},{"id":1740787200000,"desc":"Banksy Eintritt","amount":72.0,"cat":"🎁 Geschenke","date":"2026-03-01","konto":"ING Karte","wer":"Thorsten"},{"id":1740787200001,"desc":"Banksy Geschenk","amount":20.0,"cat":"🎁 Geschenke","date":"2026-03-01","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200002,"desc":"Eis","amount":14.0,"cat":"📦 Sonstiges","date":"2026-03-01","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200003,"desc":"Cola Doofmund","amount":5.0,"cat":"🥤 Getränke","date":"2026-03-01","konto":"ING Bar","wer":"Thorsten"},{"id":1740787200004,"desc":"Shampoo Flaconi","amount":32.68,"cat":"🧴 Drogerie","date":"2026-03-01","konto":"DB","wer":"Nina"}];
+    if(!existing2.fixItems) existing2.fixItems=DEF_FIX.map(x=>({...x}));
+    if(!existing2.income) existing2.income=DEF_INC.map(x=>({...x}));
+    if(!existing2.savItems) existing2.savItems=DEF_SAV_ITEMS.map(x=>({...x}));
+    if(!existing2.perItems) existing2.perItems=DEF_PER.map(x=>({...x}));
+    if(!existing2.trvItems) existing2.trvItems=[];
+    localStorage.setItem('month_'+marKey,JSON.stringify(existing2));
+    const list=JSON.parse(localStorage.getItem('monthlist')||'[]');
+    if(!list.includes(marKey)){list.push(marKey);list.sort((a,b)=>b.localeCompare(a));localStorage.setItem('monthlist',JSON.stringify(list));}
+  }
+})();
 ld();
 document.getElementById('in-date').value=new Date().toISOString().split('T')[0];
 renderOv();
 </script>
 </div><!-- end app-content -->
-<script>if("serviceWorker"in navigator){navigator.serviceWorker.register("./sw.js")}</script>
+<script>
+if("serviceWorker"in navigator){
+  navigator.serviceWorker.register("./sw.js").then(reg=>{
+    reg.addEventListener('updatefound',()=>{
+      const newWorker=reg.installing;
+      newWorker.addEventListener('statechange',()=>{
+        if(newWorker.state==='installed'&&navigator.serviceWorker.controller){
+          newWorker.postMessage('skipWaiting');
+        }
+      });
+    });
+  });
+  navigator.serviceWorker.addEventListener('controllerchange',()=>window.location.reload());
+}
+</script>
 <script>
 const CORRECT_PIN='1505';
 let pinEntry='';
@@ -1574,7 +1720,7 @@ function checkPin(){
   if(pinEntry===CORRECT_PIN){
     sessionStorage.setItem('ff_auth','1');
     document.getElementById('pin-screen').classList.add('hidden');
-    document.getElementById('app-content').style.display='';
+    document.getElementById('app-content').style.display='flex';
   } else {
     document.getElementById('pin-error').textContent='Falscher PIN — bitte erneut versuchen';
     pinEntry='';
@@ -1585,7 +1731,7 @@ function checkPin(){
 // Check if already authenticated this session
 if(sessionStorage.getItem('ff_auth')==='1'){
   document.getElementById('pin-screen').classList.add('hidden');
-  document.getElementById('app-content').style.display='';
+  document.getElementById('app-content').style.display='flex';
 }
 </script>
 </body>

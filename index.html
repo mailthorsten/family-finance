@@ -724,6 +724,10 @@ function runBackup(dateStr){
 function renderAll(){
   renderOv();
   renderExpList();
+  renderTrv();
+  renderFix();
+  renderPerPage();
+  renderSavPage();
   const M=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
   const [y,m]=activeMonthKey.split('-');
   document.getElementById('mlbl').textContent=M[parseInt(m)-1]+' '+y;
@@ -1807,6 +1811,8 @@ function checkPin(){
     sessionStorage.setItem('ff_auth','1');
     document.getElementById('pin-screen').classList.add('hidden');
     document.getElementById('app-content').style.display='flex';
+    renderAll();
+    renderExpList();
   } else {
     document.getElementById('pin-error').textContent='Falscher PIN — bitte erneut versuchen';
     pinEntry='';
@@ -1818,6 +1824,7 @@ function checkPin(){
 if(sessionStorage.getItem('ff_auth')==='1'){
   document.getElementById('pin-screen').classList.add('hidden');
   document.getElementById('app-content').style.display='flex';
+  setTimeout(()=>{renderAll();renderExpList();},100);
 }
 </script>
 </body>
